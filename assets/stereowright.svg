@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect x="4" y="4" width="120" height="120" rx="26" fill="#16181d"/>
+  <!-- far mountains -->
+  <path d="M14 92 L44 50 L62 72 L80 44 L114 92 Z" fill="#2c3340"/>
+  <!-- near hill, offset copies for the two eyes -->
+  <path d="M10 104 L46 66 L84 104 Z" fill="#ff4d5e" opacity="0.85"/>
+  <path d="M20 104 L56 66 L94 104 Z" fill="#33d6e8" opacity="0.85"/>
+  <path d="M20 104 L46 76.6 L74 104 Z" fill="#e8eef5"/>
+  <circle cx="92" cy="34" r="9" fill="#ffd166"/>
+</svg>

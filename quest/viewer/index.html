@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Stereowright 3D Photos</title>
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+<header>
+  <img src="icon.svg" alt="" class="logo">
+  <h1>Stereowright</h1>
+  <span id="count" class="muted"></span>
+  <div class="spacer"></div>
+  <label class="toggle"><input type="checkbox" id="follow" checked> Jump to new photos</label>
+  <label class="toggle" id="pt-label" hidden><input type="checkbox" id="passthrough"> See my room</label>
+  <button id="enter" class="primary" disabled>View in 3D</button>
+</header>
+
+<p id="notice" class="notice" hidden></p>
+
+<main id="grid" aria-live="polite"></main>
+<p id="empty" class="empty" hidden>
+  No 3D photos yet. Export some in Stereowright (side-by-side output); they appear here by themselves.
+</p>
+
+<section class="help">
+  <h2>In 3D</h2>
+  <ul>
+    <li><b>Trigger</b> (or pinch): right = next photo, left = previous</li>
+    <li><b>Thumbstick</b> ◀ ▶ previous / next, ▲ ▼ bigger / smaller, press = normal size</li>
+    <li><b>Grip</b>: bring the photo in front of you</li>
+    <li><b>A / X</b>: show the photo name, <b>B / Y</b>: back to this page</li>
+  </ul>
+</section>
+
+<footer id="wifi" hidden></footer>
+
+<script src="viewer.js"></script>
+</body>
+</html>

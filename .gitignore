@@ -1,0 +1,6 @@
+/target
+# Model weights are large; fetch them with scripts/fetch-models.sh
+/models/*.onnx
+/models/*.part
+/models/weights/
+__pycache__/

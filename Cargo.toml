@@ -1,0 +1,80 @@
+[package]
+name = "stereowright"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+description = "Turn photos and videos into VR-ready stereo 3D with a local AI depth model. Fully offline."
+license = "MIT"
+authors = ["Vincent Willcox"]
+repository = "https://github.com/vwillcox/stereowright"
+readme = "README.md"
+keywords = ["stereoscopic", "vr", "depth-estimation", "3d", "onnx"]
+categories = ["multimedia::images", "multimedia::video", "graphics"]
+publish = false
+
+[features]
+default = ["cuda"]
+# NVIDIA GPU acceleration through ONNX Runtime's CUDA 13 backend (needs cuDNN 9).
+# Without it (or without a GPU) inference runs on the CPU.
+cuda = ["ort/cuda"]
+
+[dependencies]
+# ONNX Runtime. `download-binaries` fetches the runtime library at *build* time only.
+# `fetch-models` (the runtime HTTP downloader) is deliberately NOT enabled.
+ort = { version = "=2.0.0-rc.15", default-features = false, features = [
+    "std",
+    "ndarray",
+    "half",
+    "download-binaries",
+    "tls-native",
+    "copy-dylibs",
+    "api-31",
+] }
+ndarray = "0.17"
+half = "2"
+
+eframe = { version = "0.37", default-features = false, features = [
+    "accesskit",
+    "clipboard",
+    "default_fonts",
+    "glow",
+    "persistence",
+    "wayland",
+    "x11",
+] }
+# Same version eframe uses; only here to switch on the bundled icon/emoji fonts.
+egui = { version = "0.37", features = ["monochrome_emoji_fonts"] }
+rfd = "0.18"
+
+image = { version = "0.25", default-features = false, features = [
+    "bmp",
+    "jpeg",
+    "png",
+    "rayon",
+    "tiff",
+    "webp",
+] }
+rayon = "1.12"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "1"
+clap = { version = "4.6", features = ["derive"] }
+anyhow = "1"
+log = "0.4"
+env_logger = "0.11"
+qrcodegen = "1.8"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+seccompiler = "0.5"
+libc = "0.2"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+lto = "thin"
+codegen-units = 4

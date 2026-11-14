@@ -1,0 +1,75 @@
+# Stereowright model registry.
+#
+# Any ONNX monocular depth model can be added here. Drop the .onnx file in this
+# folder and add an entry. Fields:
+#   output  = "disparity"  (bigger value = nearer;  e.g. Depth Anything, MiDaS)
+#           | "depth"      (bigger value = farther; e.g. metric depth models)
+#   patch   = input sides are rounded to a multiple of this (14 for DINOv2-based models)
+#   fetch   = name to pass to scripts/fetch-models.sh to download it (optional)
+# Models are tried in this order when no model is chosen: the last installed one wins.
+
+[[model]]
+id = "da2-small"
+name = "Depth Anything V2 · Small"
+file = "depth-anything-v2-small.onnx"
+notes = "Fast (25M params). Fine for quick previews and big batches. Licence: Apache-2.0."
+output = "disparity"
+patch = 14
+mean = [0.485, 0.456, 0.406]
+std = [0.229, 0.224, 0.225]
+fetch = "small"
+
+[[model]]
+id = "da2-base"
+name = "Depth Anything V2 · Base"
+file = "depth-anything-v2-base-fp16.onnx"
+notes = "Balanced (98M params). Licence: CC-BY-NC-4.0 (personal / non-commercial use)."
+output = "disparity"
+patch = 14
+mean = [0.485, 0.456, 0.406]
+std = [0.229, 0.224, 0.225]
+fetch = "base"
+
+[[model]]
+id = "da2-large"
+name = "Depth Anything V2 · Large"
+file = "depth-anything-v2-large-fp16.onnx"
+notes = "Best detail (335M params). Recommended with an NVIDIA GPU. Licence: CC-BY-NC-4.0 (personal / non-commercial use)."
+output = "disparity"
+patch = 14
+mean = [0.485, 0.456, 0.406]
+std = [0.229, 0.224, 0.225]
+fetch = "large"
+
+# ---------------------------------------------------------------------------
+# AI upscalers (Real-ESRGAN, BSD-3-Clause). Built locally from the official
+# weights by scripts/make-upscalers.sh. Input/output: RGB, 0..1, NCHW.
+#   scale    = upscale factor of the network
+#   multiple = input sides must be a multiple of this
+
+[[upscaler]]
+id = "esrgan-x4plus"
+name = "Real-ESRGAN x4plus · quality"
+file = "realesrgan-x4plus.onnx"
+scale = 4
+multiple = 1
+notes = "Best detail for photos. Slower (big network)."
+fetch = "x4plus"
+
+[[upscaler]]
+id = "esrgan-x2plus"
+name = "Real-ESRGAN x2plus · gentle"
+file = "realesrgan-x2plus.onnx"
+scale = 2
+multiple = 2
+notes = "2x only: invents less detail, good for photos that are only a bit small."
+fetch = "x2plus"
+
+[[upscaler]]
+id = "esrgan-general-x4v3"
+name = "Real-ESRGAN general v3 · fast"
+file = "realesr-general-x4v3.onnx"
+scale = 4
+multiple = 1
+notes = "Tiny and very fast. Softer than x4plus."
+fetch = "general-x4v3"

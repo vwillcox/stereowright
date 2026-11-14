@@ -28,8 +28,9 @@ Real-ESRGAN upscalers. The larger Base and Large models are non-commercial and n
 
 ### Linux (x86-64)
 
-`stereowright-<version>-linux-x86_64.tar.gz`, for distributions from about 2022 onwards
-(glibc 2.35+: Ubuntu 22.04, Debian 12, Fedora 36, Arch and newer).
+`stereowright-<version>-linux-x86_64.tar.gz`, for distributions from 2024 onwards
+(glibc 2.39+: Ubuntu 24.04, Debian 13, Fedora 40 and newer, Arch). On older ones,
+build from source as below.
 
 ```bash
 tar xf stereowright-*-linux-x86_64.tar.gz

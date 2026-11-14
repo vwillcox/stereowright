@@ -9,7 +9,7 @@ ffmpeg 9.0.2 for video.
 
 | System | File | GPU | Network block |
 |---|---|---|---|
-| **Linux** x86-64 (glibc 2.35+, e.g. Ubuntu 22.04, Debian 12, Fedora 36, Arch) | `stereowright-@VERSION@-linux-x86_64.tar.gz` | NVIDIA (CUDA 13 + cuDNN 9 installed), else CPU | ✅ **On**: Linux kernel seccomp filter |
+| **Linux** x86-64 (glibc 2.39+: Ubuntu 24.04, Debian 13, Fedora 40 or newer, Arch) | `stereowright-@VERSION@-linux-x86_64.tar.gz` | NVIDIA (CUDA 13 + cuDNN 9 installed), else CPU | ✅ **On**: Linux kernel seccomp filter |
 | **macOS** 13.4+ on Apple silicon (M1 or newer) | `stereowright-@VERSION@-macos-arm64.dmg` | Apple GPU / Neural Engine (Core ML) | ✅ **On**: macOS kernel sandbox |
 | **Windows** 10 / 11, 64-bit | `stereowright-@VERSION@-windows-x86_64.zip` | Any DirectX 12 GPU (DirectML), else CPU | ⚠️ **Not available**: see below |
 

@@ -468,7 +468,7 @@ pub fn doctor(lockdown: &Lockdown) -> Result<()> {
     if *lockdown == Lockdown::Unsupported {
         println!(
             "  · Stereowright has no networking code, but nothing on this OS enforces that.\n    \
-             For a guarantee, block it in the firewall (see docs/USER_GUIDE.md)."
+             For a guarantee, block it in the firewall (see README.txt next to the app)."
         );
     } else {
         match sandbox::self_test() {

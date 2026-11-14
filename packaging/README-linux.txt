@@ -32,5 +32,6 @@ INCLUDED
   the Large model (non-commercial licence) into the models folder.
   Licences: LICENSE (Stereowright, MIT), THIRD-PARTY-NOTICES.md.
 
-Built on Ubuntu 22.04: runs on distributions from about 2022 onwards (glibc 2.35+).
+Built on Ubuntu 24.04: needs glibc 2.39 or newer (Ubuntu 24.04, Debian 13, Fedora 40 and
+newer, Arch). On older distributions, build from source (see the user guide).
 User guide: https://github.com/vwillcox/stereowright/blob/main/docs/USER_GUIDE.md

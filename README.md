@@ -86,7 +86,7 @@ Real-ESRGAN upscalers; Windows and macOS also include ffmpeg for video.
 
 | System | Download | GPU | Network block |
 |---|---|---|---|
-| Linux x86-64 (glibc 2.35+) | `…-linux-x86_64.tar.gz` | NVIDIA (CUDA 13 + cuDNN 9), else CPU | ✅ kernel seccomp filter |
+| Linux x86-64 (glibc 2.39+) | `…-linux-x86_64.tar.gz` | NVIDIA (CUDA 13 + cuDNN 9), else CPU | ✅ kernel seccomp filter |
 | macOS 13.4+, Apple silicon | `…-macos-arm64.dmg` | Apple GPU / Neural Engine (Core ML) | ✅ kernel sandbox |
 | Windows 10 / 11, 64-bit | `…-windows-x86_64.zip` | any DirectX 12 GPU (DirectML), else CPU | ⚠️ none: use the firewall |
 

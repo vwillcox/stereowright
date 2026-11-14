@@ -45,9 +45,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Built on the oldest supported Ubuntu so the binary runs on glibc 2.35 and newer.
+          # ONNX Runtime's prebuilt library needs glibc 2.38+ and GCC 13's libstdc++ to link,
+          # so the oldest usable Ubuntu is 24.04 (the release then runs on glibc 2.39+).
           - name: linux-x86_64
-            runner: ubuntu-22.04
+            runner: ubuntu-24.04
             features: ""
             archive: tar.gz
           - name: windows-x86_64
@@ -99,7 +100,7 @@ jobs:
           mkdir -p "$scratch/home" "$scratch/out"
           export HOME="$scratch/home" XDG_DATA_HOME="$scratch/home/.local/share" APPDATA="$scratch/home/AppData"
 
-          "$app" doctor | tee "$scratch/doctor.txt"
+          "$app" doctor 2>&1 | tee "$scratch/doctor.txt"
           grep -q "✓ Depth Anything V2 · Small" "$scratch/doctor.txt"
           grep -q "✓ Real-ESRGAN general v3" "$scratch/doctor.txt"
           case "${{ matrix.name }}" in

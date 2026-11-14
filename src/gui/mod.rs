@@ -660,18 +660,34 @@ impl App {
         let ifs = sandbox::visible_interfaces();
         match (&self.lockdown, &self.lockdown_test) {
             (Lockdown::Active, Ok(())) => {
-                let txt = if ifs.is_empty() {
+                let txt = if ifs.as_ref().is_some_and(|i| i.is_empty()) {
                     "🔒 Offline: no network at all"
                 } else {
                     "🔒 Offline: network blocked"
                 };
+                let how = if cfg!(target_os = "macos") {
+                    "The macOS kernel refuses to let this app open any network connection \
+                     (Apple's no-network sandbox, applied at start-up, cannot be undone)."
+                } else {
+                    "The Linux kernel refuses to let this app open any internet connection \
+                     (seccomp filter, installed at start-up, cannot be undone)."
+                };
                 ui.label(RichText::new(txt).color(Color32::from_rgb(110, 210, 130)))
-                    .on_hover_text(
-                        "Everything happens on this computer.\n\n\
-                         The Linux kernel refuses to let this app open any internet \
-                         connection (seccomp filter, installed at start-up, cannot be undone). \
+                    .on_hover_text(format!(
+                        "Everything happens on this computer.\n\n{how} \
                          A self-test confirmed it just now.\n\n\
-                         Your photos are read from and written to your disk only.",
+                         Your photos are read from and written to your disk only."
+                    ));
+            }
+            (Lockdown::Unsupported, _) => {
+                ui.label(RichText::new("⚠ No network block on this system").color(Color32::from_rgb(240, 160, 90)))
+                    .on_hover_text(
+                        "Everything still happens on this computer: Stereowright has no networking \
+                         code (checked every time it is built), and your photos are only read from \
+                         and written to your disk.\n\n\
+                         But Windows has no way for a program to lock itself out of the network, \
+                         so nothing enforces that here, unlike on Linux and macOS. For a guarantee, \
+                         block Stereowright in Windows Defender Firewall (see the user guide).",
                     );
             }
             (_, Err(e)) => {
@@ -911,7 +927,7 @@ impl App {
                          Very high and Ultra are limited to what fits in GPU memory.",
                     );
             });
-            ui.checkbox(&mut self.settings.use_gpu, "Use NVIDIA GPU (CUDA)");
+            ui.checkbox(&mut self.settings.use_gpu, crate::depth::GPU_LABEL);
             if reg.best_installed().is_none() {
                 ui.colored_label(
                     Color32::from_rgb(240, 120, 90),
@@ -1086,6 +1102,11 @@ impl App {
 
     /// Start/stop the Quest share helper and show how to reach it.
     fn quest_block(&mut self, ui: &mut egui::Ui) {
+        if !cfg!(target_os = "linux") {
+            // The helper runs as a systemd user service, so it is Linux-only for now.
+            ui.label(RichText::new("Quest sharing is Linux-only for now: copy the _LR files to the headset over USB.").small().weak());
+            return;
+        }
         let green = Color32::from_rgb(110, 210, 130);
         let warn = Color32::from_rgb(240, 160, 90);
         match self.quest.clone() {
@@ -1271,7 +1292,14 @@ impl App {
                     .on_hover_text(dir.display().to_string())
                     .clicked()
                 {
-                    let _ = std::process::Command::new("xdg-open").arg(&dir).spawn();
+                    let opener = if cfg!(windows) {
+                        "explorer"
+                    } else if cfg!(target_os = "macos") {
+                        "open"
+                    } else {
+                        "xdg-open"
+                    };
+                    let _ = std::process::Command::new(opener).arg(&dir).spawn();
                 }
             ui.add_space(4.0);
         });

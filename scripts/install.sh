@@ -42,12 +42,19 @@ case "${1:-}" in
   *) echo "usage: scripts/install.sh [--cpu | --uninstall]" >&2; exit 2 ;;
 esac
 
-echo "Building release…"
-cargo build --release --manifest-path "$src/Cargo.toml" "${features[@]}"
+if [ -f "$src/Cargo.toml" ]; then
+  echo "Building release…"
+  cargo build --release --manifest-path "$src/Cargo.toml" "${features[@]}"
+  built="$src/target/release"
+else
+  # Run from an unpacked release download: the app is already built.
+  built="$src"
+  [ "${#features[@]}" -eq 0 ] || echo "(--cpu only matters when building from source; ignored)"
+fi
 
 mkdir -p "$dest/bin" "$dest/models" "$bindir" "$apps" "$icons"
-install -m755 "$src/target/release/stereowright" "$dest/bin/stereowright"
-for lib in "$src"/target/release/libonnxruntime*.so; do
+install -m755 "$built/stereowright" "$dest/bin/stereowright"
+for lib in "$built"/libonnxruntime*.so; do
   [ -e "$lib" ] && cp -L --remove-destination "$lib" "$dest/bin/"
 done
 install -m755 "$src/scripts/run-offline.sh" "$dest/bin/run-offline.sh"

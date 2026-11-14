@@ -179,7 +179,8 @@ fn has_models(dir: &Path) -> bool {
 }
 
 /// Search order: $STEREOWRIGHT_MODELS, next to the executable (and the project root when
-/// running from target/), the current directory, then ~/.local/share/stereowright/models.
+/// running from target/, or Contents/Resources inside a macOS .app), the current
+/// directory, then the data folder (see `data_dir`).
 fn find_models_dir() -> PathBuf {
     if let Some(p) = std::env::var_os("STEREOWRIGHT_MODELS") {
         return PathBuf::from(p);
@@ -188,6 +189,9 @@ fn find_models_dir() -> PathBuf {
     if let Ok(exe) = std::env::current_exe().and_then(|p| p.canonicalize()) {
         for anc in exe.ancestors().skip(1).take(4) {
             candidates.push(anc.join("models"));
+            if cfg!(target_os = "macos") {
+                candidates.push(anc.join("Resources").join("models"));
+            }
         }
     }
     if let Ok(cwd) = std::env::current_dir() {
@@ -201,10 +205,26 @@ fn find_models_dir() -> PathBuf {
         .unwrap_or(data)
 }
 
+/// Where the app keeps its own files: ~/.local/share/stereowright on Linux (or
+/// $XDG_DATA_HOME), %APPDATA%\Stereowright on Windows, and
+/// ~/Library/Application Support/Stereowright on macOS.
 pub fn data_dir() -> PathBuf {
+    let home = || std::env::var_os("HOME").map(PathBuf::from);
+    if cfg!(windows) {
+        return std::env::var_os("APPDATA")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("Stereowright");
+    }
+    if cfg!(target_os = "macos") {
+        return home()
+            .map(|h| h.join("Library/Application Support"))
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("Stereowright");
+    }
     std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
+        .or_else(|| home().map(|h| h.join(".local/share")))
         .unwrap_or_else(|| PathBuf::from("."))
         .join("stereowright")
 }

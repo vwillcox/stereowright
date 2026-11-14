@@ -53,7 +53,9 @@ Two settings matter most:
 
 - **Top bar:** open photos or a folder. On the right, which processor the AI runs on
   (for example **NVIDIA GPU (CUDA)**) and **Offline: network blocked**, which means the
-  kernel network block is active and was verified at start-up.
+  kernel network block is active and was verified at start-up. On Windows, which has no
+  such block, it says **No network block on this system** instead (see the download's
+  `README.txt` for the firewall rules that make up for it).
 - **Left panel:** all the settings, in sections you can fold away.
 - **Middle:** the preview, with the view tabs along the top.
 - **Right panel:** your list of photos. Click one to show it, or use the **arrow keys**;
@@ -89,13 +91,15 @@ Settings are remembered between sessions. **Settings ▸ Reset to defaults** put
   | Level | Pixels | Notes |
   |---|---|---|
   | Fast | 392 | quick previews |
-  | Standard | 518 | the model's native size |
-  | **High** (default) | 770 | good balance |
+  | Standard | 518 | the model's native size; **the default on Macs** |
+  | **High** (default) | 770 | good balance (on Macs, 5 to 10× slower than Standard) |
   | Very high | 1022 | fine detail |
   | Ultra | 1274 | finest; needs a lot of GPU memory |
 
   If the GPU runs out of memory, Stereowright retries at a lower resolution automatically.
-- **Use NVIDIA GPU (CUDA):** on by default. Turn it off to force the CPU.
+- **Use NVIDIA GPU (CUDA):** on by default. Turn it off to force the CPU. On Windows it's
+  **Use the GPU (DirectML)** (any DirectX 12 graphics card) and on Macs **Use the GPU
+  (Core ML)** (the Apple GPU and Neural Engine).
 
 ### AI upscale (Real-ESRGAN)
 
@@ -214,6 +218,9 @@ Some players expect the right eye first. If the depth looks inside-out, tick **S
 left/right eyes** and export again.
 
 ## Viewing on a Meta Quest
+
+*Linux only for now: on Windows and macOS, copy the `_LR` files to the headset over USB
+and open them in a VR photo player instead.*
 
 Stereowright can show your 3D photos in a 3D gallery in the **Quest Browser**, with no app
 to install and no cloud service. New exports appear in the headset by themselves, so the
@@ -341,9 +348,12 @@ stereowright convert clips/ --video-width 1280 --detail 518    # faster
 - **HDR** phone videos are converted to normal range.
 - **Speed:** on an RTX 5060 Ti at 1080p, about 2 frames per second with the Large model at
   the default detail, 6.5 with `--detail 518`, and 12 with `--detail 518 --model da2-small`.
-  A one-minute 30 fps clip therefore takes from about 3 to 15 minutes.
+  A one-minute 30 fps clip therefore takes from about 3 to 15 minutes. On an M4 Mac mini
+  the AI takes about 1.2 s per frame at the Mac default (518 px): keep videos on that
+  detail there, as 770 px is many times slower.
 
 Supported inputs: MP4, M4V, MOV, MKV, WebM, AVI, MTS and M2TS (anything your `ffmpeg` can decode).
+On Linux, ffmpeg comes from your distribution; the Windows and macOS downloads include it.
 
 ## Tips for good 3D
 
@@ -384,8 +394,9 @@ confirmed on your system. See the [installation guide](INSTALL.md#troubleshootin
 | What | Where |
 |---|---|
 | Your converted files | `stereowright/` next to each photo, or the folder you chose |
-| App settings | `~/.local/share/stereowright/app.ron` |
-| Models (installed copy) | `~/.local/share/stereowright/models/` |
+| App settings | `~/.local/share/stereowright/app.ron` (macOS: `~/Library/Application Support/stereowright/app.ron`; Windows: `%APPDATA%\stereowright\data\app.ron`) |
+| Models (installed copy) | `~/.local/share/stereowright/models/` (the Windows and macOS downloads keep them inside the download: the `models` folder, or `Stereowright.app/Contents/Resources/models`) |
+| Core ML's compiled-model cache (Macs) | `~/Library/Application Support/Stereowright/coreml-cache/` |
 | Quest sharing: folder list, link token, certificate, thumbnails | `~/.local/share/stereowright/share/` |
 
 Stereowright never changes or deletes your original photos.

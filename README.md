@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>Turn ordinary photos and videos into 3D for your VR headset, using an AI model that runs on your own computer.</b><br>
-  Nothing is uploaded. The app is blocked from the network by the Linux kernel itself.
+  Nothing is uploaded. On Linux and macOS, the operating system itself blocks the app from the network.
 </p>
 
 <p align="center">
@@ -72,10 +72,29 @@ red/cyan glasses, and the photo has depth.
 - **Handle 360° / VR180 photos, existing stereo pairs, RAW, HEIC or AVIF files.** Supported
   inputs are JPEG, PNG, WebP, TIFF and BMP photos, and MP4, MOV, MKV, WebM, AVI, MTS and
   M2TS videos (videos need `ffmpeg`).
-- **Run on Windows or macOS.** It's a Linux app: the network block uses Linux seccomp, and
-  Quest sharing uses systemd. Other platforms are untested.
+- **Enforce the network block on Windows.** Windows has no way for a program to lock itself
+  out of the network, so there the promise rests on the app having no networking code
+  (blocking it in Windows Defender Firewall makes it enforced: see the `README.txt` in the
+  download). **View on Quest 3** sharing is Linux-only for now, and Intel Macs aren't
+  supported.
 
-## Quick start
+## Download
+
+Ready-made downloads are on the [Releases page](https://github.com/vwillcox/stereowright/releases).
+Each one includes the app, the GPU runtime, the Depth Anything V2 Small model and the
+Real-ESRGAN upscalers; Windows and macOS also include ffmpeg for video.
+
+| System | Download | GPU | Network block |
+|---|---|---|---|
+| Linux x86-64 (glibc 2.35+) | `…-linux-x86_64.tar.gz` | NVIDIA (CUDA 13 + cuDNN 9), else CPU | ✅ kernel seccomp filter |
+| macOS 13.4+, Apple silicon | `…-macos-arm64.dmg` | Apple GPU / Neural Engine (Core ML) | ✅ kernel sandbox |
+| Windows 10 / 11, 64-bit | `…-windows-x86_64.zip` | any DirectX 12 GPU (DirectML), else CPU | ⚠️ none: use the firewall |
+
+The apps aren't signed with paid certificates. On macOS, the first start is blocked: go to
+**System Settings → Privacy & Security** and click **Open Anyway**. On Windows, click
+**More info → Run anyway**. Details: [installation guide](docs/INSTALL.md#ready-made-downloads).
+
+## Build from source
 
 On Arch Linux (other distributions: see the [installation guide](docs/INSTALL.md)):
 
@@ -112,6 +131,13 @@ Then open a photo, pick a preset, and click **Export this photo**. The 3D files 
    top-right corner.
 3. **An optional extra layer.** `scripts/run-offline.sh` (used by the app-launcher entry)
    starts the app inside a private network namespace with no network devices at all.
+
+On **macOS**, step 2 is a kernel sandbox instead: the app's first act is to enter a sandbox
+profile that denies every network connection (including to the Mac itself), which the
+bundled ffmpeg inherits, and the same self-test checks it. On **Windows** there is no
+equivalent, so only step 1 applies, and the app says **No network block on this system**;
+the download's `README.txt` gives three PowerShell commands that block it in Windows
+Defender Firewall.
 
 The only things that use the network are the ones you run yourself, and they only download:
 `scripts/fetch-models.sh` and `scripts/make-upscalers.sh` (both check SHA-256 hashes), and
@@ -174,6 +200,10 @@ Measured on an NVIDIA RTX 5060 Ti with the Large model unless noted:
 | 1080p video, `--detail 518` | ~6.5 frames/s |
 | 1080p video, `--detail 518 --model da2-small` | ~12 frames/s |
 | CPU only (no GPU), Small model, one photo | ~4 s |
+
+On an Apple M4 Mac mini (16 GB, Core ML, Small model): about 1.5 to 2 s for the depth
+estimate at 518 px (the Mac default), 10 to 20 s at 770 px, and about 1.2 s per frame for
+video at 518 px.
 
 ## Development
 

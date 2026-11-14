@@ -54,7 +54,10 @@ pub struct DepthSettings {
 impl Default for DepthSettings {
     fn default() -> Self {
         Self {
-            detail: 770,
+            // Macs default to Standard: on Core ML, High is about 5-10x slower than
+            // Standard (≈1.5 s → 10-20 s per photo on an M4 with 16 GB) and video frames slow
+            // to a crawl. Elsewhere the default is High.
+            detail: if cfg!(target_os = "macos") { 518 } else { 770 },
             invert: false,
             far_clip: 0.0,
             near_clip: 1.0,
@@ -201,7 +204,7 @@ impl Default for VideoSettings {
 pub struct Settings {
     /// Model id from models/models.toml. Empty = best installed model.
     pub model: String,
-    /// Use the NVIDIA GPU when available (falls back to CPU automatically).
+    /// Use the GPU when available (CUDA, DirectML or Core ML; falls back to the CPU automatically).
     pub use_gpu: bool,
     pub upscale: UpscaleSettings,
     pub depth: DepthSettings,

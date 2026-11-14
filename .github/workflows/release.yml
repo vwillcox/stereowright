@@ -1,0 +1,158 @@
+# Release builds for Linux, Windows and macOS.
+#
+#   Run it by hand (Actions → Release builds → Run workflow) to get the three downloads as
+#   workflow artifacts, or push a version tag (git tag v0.1.0 && git push origin v0.1.0)
+#   to also create a *draft* GitHub release with them attached, ready to check and publish.
+#
+# Everything downloaded here is build-time only: the models (SHA-256 pinned in
+# scripts/fetch-models.sh and scripts/make-upscalers.sh), ONNX Runtime (through the ort
+# crate) and ffmpeg for Windows/macOS (SHA-256 pinned in scripts/package-release.sh).
+# Each build is checked for networking libraries and smoke-tested before it is uploaded.
+name: Release builds
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  models:
+    name: Models (Depth Anything V2 Small + Real-ESRGAN)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+      - name: Fetch the depth model
+        run: scripts/fetch-models.sh small
+      - name: Build the upscalers from the official weights
+        run: scripts/make-upscalers.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: models
+          path: models/*.onnx
+          retention-days: 3
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: models
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Built on the oldest supported Ubuntu so the binary runs on glibc 2.35 and newer.
+          - name: linux-x86_64
+            runner: ubuntu-22.04
+            features: ""
+            archive: tar.gz
+          - name: windows-x86_64
+            runner: windows-2025
+            features: --no-default-features --features directml
+            archive: zip
+          - name: macos-arm64
+            runner: macos-15
+            features: --no-default-features --features coreml
+            archive: dmg
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      # ONNX Runtime's prebuilt macOS library needs macOS 13.4 or newer (ignored elsewhere).
+      MACOSX_DEPLOYMENT_TARGET: "13.4"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.name }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: models
+          path: models
+
+      - name: No networking libraries compiled in
+        run: scripts/audit-network.sh ${{ matrix.features }}
+      - name: Tests
+        run: cargo test --release ${{ matrix.features }}
+
+      - name: Package
+        run: scripts/package-release.sh
+
+      - name: Smoke test the packaged app
+        run: |
+          version="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n1)"
+          stage="dist/stereowright-$version-${{ matrix.name }}"
+          case "${{ matrix.name }}" in
+            linux-*)   app="$stage/stereowright"; ff="" ;;
+            windows-*) app="$stage/stereowright.exe"; ff="$stage/ffmpeg.exe" ;;
+            macos-*)   app="$stage/Stereowright.app/Contents/MacOS/stereowright"; ff="$stage/Stereowright.app/Contents/MacOS/ffmpeg" ;;
+          esac
+          # Keep the app's settings and outputs out of the runner's real folders.
+          # (cygpath: on Windows, a C:/style path that both Git Bash and the app understand)
+          scratch="$(cygpath -m "$RUNNER_TEMP" 2>/dev/null || echo "$RUNNER_TEMP")/smoke"
+          mkdir -p "$scratch/home" "$scratch/out"
+          export HOME="$scratch/home" XDG_DATA_HOME="$scratch/home/.local/share" APPDATA="$scratch/home/AppData"
+
+          "$app" doctor | tee "$scratch/doctor.txt"
+          grep -q "✓ Depth Anything V2 · Small" "$scratch/doctor.txt"
+          grep -q "✓ Real-ESRGAN general v3" "$scratch/doctor.txt"
+          case "${{ matrix.name }}" in
+            windows-*) grep -q "No network block" "$scratch/doctor.txt" ;;
+            *) grep -q "✓ self-test" "$scratch/doctor.txt" ;;
+          esac
+
+          "$app" convert docs/images/photo-and-depth.jpg --out "$scratch/out" --detail 392 \
+            --upscale always --upscale-model esrgan-general-x4v3 --upscale-width 2000
+          test -s "$scratch/out/photo-and-depth_LR.jpg"
+
+          if [ -n "$ff" ]; then
+            # A one-second test clip made by the bundled ffmpeg, then converted (video uses it too).
+            "$ff" -nostdin -hide_banner -loglevel error -f lavfi -i testsrc2=size=320x180:rate=10 \
+              -f lavfi -i sine=frequency=440 -t 1 -c:v libx264 -pix_fmt yuv420p -c:a aac "$scratch/clip.mp4"
+            "$app" convert "$scratch/clip.mp4" --out "$scratch/out" --detail 392
+            test -s "$scratch/out/clip_LR.mp4"
+          fi
+          ls -la "$scratch/out"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: stereowright-${{ matrix.name }}
+          path: dist/stereowright-*.${{ matrix.archive }}
+          compression-level: 0
+          retention-days: 14
+
+  release:
+    name: Draft release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: stereowright-*
+          path: dist
+          merge-multiple: true
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          if ! grep -q "^version = \"$version\"" Cargo.toml; then
+            echo "Tag $TAG does not match the version in Cargo.toml." >&2
+            exit 1
+          fi
+          sed "s/@VERSION@/$version/g" packaging/RELEASE-NOTES.md > "$RUNNER_TEMP/notes.md"
+          sha256sum dist/stereowright-* | sed 's#  dist/#  #' > dist/SHA256SUMS.txt
+          gh release create "$TAG" --draft --verify-tag \
+            --title "Stereowright $version" --notes-file "$RUNNER_TEMP/notes.md" \
+            dist/stereowright-* dist/SHA256SUMS.txt

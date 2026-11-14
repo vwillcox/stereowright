@@ -17,6 +17,12 @@ default = ["cuda"]
 # NVIDIA GPU acceleration through ONNX Runtime's CUDA 13 backend (needs cuDNN 9).
 # Without it (or without a GPU) inference runs on the CPU.
 cuda = ["ort/cuda"]
+# Windows: any DirectX 12 GPU (NVIDIA, AMD, Intel). DirectML.dll ships with the release.
+# Build with --no-default-features --features directml.
+directml = ["ort/directml"]
+# macOS (Apple silicon): the GPU and Neural Engine through Core ML, built into macOS.
+# Build with --no-default-features --features coreml.
+coreml = ["ort/coreml"]
 
 [dependencies]
 # ONNX Runtime. `download-binaries` fetches the runtime library at *build* time only.

@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Audit: list every crate compiled INTO the stereowright binary (normal dependencies only;
 # build-time tools like the ONNX Runtime downloader are excluded because they never ship)
-# and fail if any HTTP/TLS/networking library is among them.
+# and fail if any HTTP/TLS/networking library is among them. Extra arguments go to
+# `cargo tree`, e.g. --no-default-features --features coreml for the macOS build.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 banned='^(reqwest|hyper|hyper-util|ureq|curl|curl-sys|isahc|attohttpc|surf|h2|h3|quinn|rustls|native-tls|openssl|openssl-sys|tungstenite|tokio-tungstenite|websocket|reqwless|minreq|socket2|trust-dns-resolver|hickory-resolver)$'
 
-crates=$(cargo tree -e normal --prefix none --format '{p}' 2>/dev/null | awk '{print $1}' | sort -u)
+crates=$(cargo tree -e normal "$@" --prefix none --format '{p}' 2>/dev/null | awk '{print $1}' | sort -u)
 echo "Crates compiled into stereowright: $(echo "$crates" | wc -l)"
 
 hits=$(echo "$crates" | grep -E "$banned" || true)

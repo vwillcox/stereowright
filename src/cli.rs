@@ -465,18 +465,26 @@ pub fn doctor(lockdown: &Lockdown) -> Result<()> {
     println!("Stereowright {}", env!("CARGO_PKG_VERSION"));
     println!("\n── Privacy");
     print_lockdown(lockdown);
-    match sandbox::self_test() {
-        Ok(()) => println!("  ✓ self-test: opening IPv4/IPv6 sockets is refused by the kernel"),
-        Err(e) => println!("  ✗ self-test: {e}"),
-    }
-    let ifs = sandbox::visible_interfaces();
-    if ifs.is_empty() {
-        println!("  ✓ no network interfaces visible (running in an offline namespace)");
-    } else {
+    if *lockdown == Lockdown::Unsupported {
         println!(
+            "  · Stereowright has no networking code, but nothing on this OS enforces that.\n    \
+             For a guarantee, block it in the firewall (see docs/USER_GUIDE.md)."
+        );
+    } else {
+        match sandbox::self_test() {
+            Ok(()) => println!("  ✓ self-test: opening IPv4/IPv6 sockets is refused by the kernel"),
+            Err(e) => println!("  ✗ self-test: {e}"),
+        }
+    }
+    match sandbox::visible_interfaces() {
+        Some(ifs) if ifs.is_empty() => {
+            println!("  ✓ no network interfaces visible (running in an offline namespace)")
+        }
+        Some(ifs) if lockdown.is_active() => println!(
             "  · network interfaces exist on this machine ({}) but this process cannot use them",
             ifs.join(", ")
-        );
+        ),
+        _ => {}
     }
 
     println!("\n── Models");
@@ -536,8 +544,8 @@ pub fn print_settings() -> Result<()> {
 
 fn print_lockdown(l: &Lockdown) {
     match l {
-        Lockdown::Active => eprintln!("🔒 Network access blocked for this process (kernel seccomp filter)"),
+        Lockdown::Active => eprintln!("🔒 Network access blocked for this process ({})", sandbox::MECHANISM),
         Lockdown::Failed(e) => eprintln!("⚠ Could not install the network block: {e}"),
-        Lockdown::Unsupported => eprintln!("⚠ Network block not supported on this OS"),
+        Lockdown::Unsupported => eprintln!("⚠ No network block: this OS has no way for a program to lock itself out"),
     }
 }

@@ -4,3 +4,5 @@
 /models/*.part
 /models/weights/
 __pycache__/
+# Release packages (scripts/package-release.sh)
+/dist/

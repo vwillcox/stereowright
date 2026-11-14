@@ -62,8 +62,19 @@ fn file_url(path: &Path) -> String {
     format!("file:{}", path.display())
 }
 
+/// ffmpeg/ffprobe: the copy bundled next to the executable (Windows and macOS releases),
+/// otherwise whichever is on the PATH.
+fn tool(name: &str) -> std::path::PathBuf {
+    let file = format!("{name}{}", std::env::consts::EXE_SUFFIX);
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|d| d.join(&file)))
+        .filter(|p| p.is_file())
+        .unwrap_or_else(|| file.into())
+}
+
 fn ffmpeg() -> Command {
-    let mut c = Command::new("ffmpeg");
+    let mut c = Command::new(tool("ffmpeg"));
     c.args(["-nostdin", "-hide_banner", "-loglevel", "error"]);
     c
 }
@@ -73,7 +84,7 @@ pub fn ffmpeg_available() -> bool {
     static OK: OnceLock<bool> = OnceLock::new();
     *OK.get_or_init(|| {
         let ok = |p: &str| {
-            Command::new(p)
+            Command::new(tool(p))
                 .arg("-version")
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
@@ -87,8 +98,10 @@ pub fn ffmpeg_available() -> bool {
 fn need_ffmpeg() -> Result<()> {
     if ffmpeg_available() {
         Ok(())
+    } else if cfg!(target_os = "linux") {
+        bail!("videos need ffmpeg, which isn't installed (e.g. sudo pacman -S ffmpeg or sudo apt install ffmpeg)")
     } else {
-        bail!("videos need ffmpeg, which isn't installed (sudo pacman -S ffmpeg)")
+        bail!("videos need ffmpeg, which should be next to stereowright; reinstall the release, or install ffmpeg")
     }
 }
 
@@ -109,7 +122,7 @@ fn num(v: &Value) -> Option<f64> {
 
 pub fn probe(path: &Path) -> Result<VideoInfo> {
     need_ffmpeg()?;
-    let out = Command::new("ffprobe")
+    let out = Command::new(tool("ffprobe"))
         .args(["-v", "error", "-protocol_whitelist", "file", "-print_format", "json"])
         .args(["-show_streams", "-show_format", "-i"])
         .arg(file_url(path))

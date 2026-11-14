@@ -1,4 +1,5 @@
-//! Local AI depth estimation with ONNX Runtime (CUDA when available, otherwise CPU).
+//! Local AI depth estimation with ONNX Runtime (the GPU when available: CUDA on Linux,
+//! DirectML on Windows, Core ML on macOS; otherwise the CPU).
 //! Everything happens in this process; the model is a file on disk.
 
 use std::path::Path;
@@ -28,7 +29,12 @@ pub struct RawDepth {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Device {
+    #[cfg_attr(not(feature = "cuda"), allow(dead_code))]
     Cuda,
+    #[cfg_attr(not(feature = "directml"), allow(dead_code))]
+    DirectMl,
+    #[cfg_attr(not(feature = "coreml"), allow(dead_code))]
+    CoreMl,
     Cpu,
 }
 
@@ -36,10 +42,23 @@ impl std::fmt::Display for Device {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Device::Cuda => "NVIDIA GPU (CUDA)",
+            Device::DirectMl => "GPU (DirectML)",
+            Device::CoreMl => "Apple GPU / Neural Engine (Core ML)",
             Device::Cpu => "CPU",
         })
     }
 }
+
+/// The GPU option's label in the app, for the backend this build has.
+pub const GPU_LABEL: &str = if cfg!(feature = "cuda") {
+    "Use NVIDIA GPU (CUDA)"
+} else if cfg!(feature = "directml") {
+    "Use the GPU (DirectML)"
+} else if cfg!(feature = "coreml") {
+    "Use the GPU (Core ML)"
+} else {
+    "Use the GPU (not in this build)"
+};
 
 /// Most image patches (tokens) the depth AI may look at in one go. Attention memory grows
 /// with the *square* of this: 10 000 tokens is ~3.2 GB per attention buffer for DA-V2 Large
@@ -73,9 +92,10 @@ pub struct DepthEstimator {
 /// Runtime keeps its peak allocation for the life of the app (seen holding 12.5 GB).
 pub(crate) fn shrinking_run_options(device: Device) -> Result<RunOptions> {
     let mut ro = RunOptions::new().map_err(|e| anyhow!("{e}"))?;
+    // Only CUDA has a GPU memory arena to shrink; DirectML and Core ML manage their own.
     let arenas = match device {
         Device::Cuda => "gpu:0",
-        Device::Cpu => "cpu:0",
+        Device::DirectMl | Device::CoreMl | Device::Cpu => "cpu:0",
     };
     ro.set("memory.enable_memory_arena_shrinkage", arenas)
         .map_err(|e| anyhow!("{e}"))?;
@@ -113,12 +133,12 @@ fn base_builder() -> Result<SessionBuilder> {
     Ok(b.with_intra_threads(threads).unwrap_or_else(|e| e.recover()))
 }
 
-/// Open an ONNX model on the GPU (CUDA) when asked and available, otherwise the CPU.
+/// Open an ONNX model on the GPU when asked and available, otherwise the CPU.
 /// Returns the session, where it runs, and why the GPU isn't used (if it was requested).
 pub(crate) fn open_session(path: &Path, use_gpu: bool) -> Result<(Session, Device, Option<String>)> {
     if use_gpu {
         match load_gpu(path) {
-            Ok(s) => return Ok((s, Device::Cuda, None)),
+            Ok((s, device)) => return Ok((s, device, None)),
             Err(e) => {
                 log::warn!("GPU unavailable, using CPU: {e:#}");
                 return Ok((load_cpu(path)?, Device::Cpu, Some(format!("{e:#}"))));
@@ -128,8 +148,71 @@ pub(crate) fn open_session(path: &Path, use_gpu: bool) -> Result<(Session, Devic
     Ok((load_cpu(path)?, Device::Cpu, None))
 }
 
+/// Try each GPU backend this build has, in order.
+#[allow(unused_variables, unused_mut)]
+fn load_gpu(path: &Path) -> Result<(Session, Device)> {
+    let mut errors: Vec<String> = Vec::new();
+    #[cfg(feature = "cuda")]
+    match load_cuda(path) {
+        Ok(s) => return Ok((s, Device::Cuda)),
+        Err(e) => errors.push(format!("{e:#}")),
+    }
+    #[cfg(feature = "directml")]
+    match load_directml(path) {
+        Ok(s) => return Ok((s, Device::DirectMl)),
+        Err(e) => errors.push(format!("{e:#}")),
+    }
+    #[cfg(feature = "coreml")]
+    match load_coreml(path) {
+        Ok(s) => return Ok((s, Device::CoreMl)),
+        Err(e) => errors.push(format!("{e:#}")),
+    }
+    if errors.is_empty() {
+        anyhow::bail!("built without GPU support");
+    }
+    Err(anyhow!(errors.join("; ")))
+}
+
+#[cfg(feature = "directml")]
+fn load_directml(path: &Path) -> Result<Session> {
+    use ort::ep;
+    let dml = ep::DirectML::default().build().error_on_failure();
+    // DirectML needs memory patterns off and sequential execution.
+    let mut b = base_builder()?
+        .with_memory_pattern(false)
+        .unwrap_or_else(|e| e.recover())
+        .with_parallel_execution(false)
+        .unwrap_or_else(|e| e.recover())
+        .with_execution_providers([dml])
+        .map_err(|e| anyhow!("DirectML not available ({e}). Is the graphics driver up to date?"))?;
+    b.commit_from_file(path)
+        .map_err(|e| anyhow!("loading model on GPU failed: {e}"))
+}
+
+#[cfg(feature = "coreml")]
+fn load_coreml(path: &Path) -> Result<Session> {
+    use ort::ep::{
+        self,
+        coreml::{ComputeUnits, ModelFormat},
+    };
+    // Compiled Core ML models are cached so the next start is quick.
+    let cache = crate::models::data_dir().join("coreml-cache");
+    let _ = std::fs::create_dir_all(&cache);
+    let coreml = ep::CoreML::default()
+        .with_model_format(ModelFormat::MLProgram)
+        .with_compute_units(ComputeUnits::All)
+        .with_model_cache_dir(cache.display())
+        .build()
+        .error_on_failure();
+    let mut b = base_builder()?
+        .with_execution_providers([coreml])
+        .map_err(|e| anyhow!("Core ML not available ({e})"))?;
+    b.commit_from_file(path)
+        .map_err(|e| anyhow!("loading model with Core ML failed: {e}"))
+}
+
 #[cfg(feature = "cuda")]
-fn load_gpu(path: &Path) -> Result<Session> {
+fn load_cuda(path: &Path) -> Result<Session> {
     use ort::ep::{self, ArenaExtendStrategy, cuda::ConvAlgorithmSearch};
     let cuda = ep::CUDA::default()
         // Exhaustive search re-benchmarks for every new image size; heuristic is near-identical and instant.
@@ -144,11 +227,6 @@ fn load_gpu(path: &Path) -> Result<Session> {
         .map_err(|e| anyhow!("CUDA not available ({e}). Is cuDNN 9 installed? (sudo pacman -S cudnn)"))?;
     b.commit_from_file(path)
         .map_err(|e| anyhow!("loading model on GPU failed: {e}"))
-}
-
-#[cfg(not(feature = "cuda"))]
-fn load_gpu(_path: &Path) -> Result<Session> {
-    anyhow::bail!("built without the `cuda` feature")
 }
 
 fn load_cpu(path: &Path) -> Result<Session> {
@@ -224,7 +302,7 @@ impl DepthEstimator {
                 Err(e) if is_out_of_memory(&e) => {
                     let tokens = (tw / patch) * (th / patch);
                     if tokens <= MIN_TOKENS {
-                        return Err(e.context("not enough GPU memory even at the lowest detail; close other GPU apps or untick 'Use NVIDIA GPU'"));
+                        return Err(e.context("not enough GPU memory even at the lowest detail; close other GPU apps or untick the GPU option"));
                     }
                     self.token_budget = (tokens * 3 / 5).max(MIN_TOKENS);
                     let (nw, nh) = network_size(w, h, detail, patch, self.token_budget);

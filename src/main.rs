@@ -30,7 +30,11 @@ fn main() -> ExitCode {
 
     let args = cli::Cli::parse();
     let result = match args.command {
-        None => gui::run(args.images, lockdown),
+        None => {
+            #[cfg(windows)]
+            hide_own_console();
+            gui::run(args.images, lockdown)
+        }
         Some(cli::Command::Convert(c)) => cli::convert(c, &lockdown),
         Some(cli::Command::Models) => cli::models(),
         Some(cli::Command::Doctor) => cli::doctor(&lockdown),
@@ -42,6 +46,24 @@ fn main() -> ExitCode {
         Err(e) => {
             eprintln!("error: {e:#}");
             ExitCode::FAILURE
+        }
+    }
+}
+
+/// Started by double-click on Windows, the GUI would sit behind an empty console window.
+/// Drop that console when it belongs to us alone (it stays when run from a terminal, so the
+/// command-line tools still print there).
+#[cfg(windows)]
+fn hide_own_console() {
+    unsafe extern "system" {
+        fn GetConsoleProcessList(list: *mut u32, count: u32) -> u32;
+        fn FreeConsole() -> i32;
+    }
+    let mut ids = [0u32; 2];
+    // SAFETY: plain kernel32 calls with a valid buffer of the given length.
+    unsafe {
+        if GetConsoleProcessList(ids.as_mut_ptr(), ids.len() as u32) == 1 {
+            FreeConsole();
         }
     }
 }
